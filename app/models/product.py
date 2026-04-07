@@ -47,7 +47,7 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(300))
     description: Mapped[str | None] = mapped_column(Text)
     size: Mapped[str] = mapped_column(String(20))
-    condition: Mapped[ProductCondition] = mapped_column(Enum(ProductCondition), default=ProductCondition.NEW)
+    condition: Mapped[ProductCondition] = mapped_column(Enum(ProductCondition, native_enum=False), default=ProductCondition.NEW)
     release_price: Mapped[int] = mapped_column(Integer)
     current_price: Mapped[int] = mapped_column(Integer)
     stock_quantity: Mapped[int] = mapped_column(Integer, default=0)

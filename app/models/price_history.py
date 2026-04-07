@@ -19,7 +19,7 @@ class PriceHistory(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
     price: Mapped[int] = mapped_column(Integer)
     previous_price: Mapped[int | None] = mapped_column(Integer)
-    source: Mapped[PriceSource] = mapped_column(Enum(PriceSource), default=PriceSource.PARTNER)
+    source: Mapped[PriceSource] = mapped_column(Enum(PriceSource, native_enum=False), default=PriceSource.PARTNER)
     ai_summary: Mapped[str | None] = mapped_column(Text)
     recorded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
