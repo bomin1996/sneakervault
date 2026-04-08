@@ -182,6 +182,12 @@ sneakervault/
 └── requirements.txt
 ```
 
+## Changelog
+
+| 커밋 | 변경 사항 | 이유 |
+|------|----------|------|
+| `fix: restrict CORS policy and allowed HTTP methods` | CORS `allow_origins=["*"]` 제거, 환경변수 기반 origin 관리로 변경. `allow_methods`/`allow_headers`를 필요한 항목만 명시 | 코드 리뷰 중 CORS가 전체 origin을 허용하고 있는 걸 발견했는데, 이러면 악의적인 외부 사이트에서 API를 자유롭게 호출할 수 있어서 CSRF 공격에 노출될 수 있겠다고 판단했다. 운영 환경에서는 신뢰할 수 있는 도메인만 허용해야 한다고 생각해서 `.env`로 origin을 관리하도록 변경했고, methods와 headers도 와일드카드 대신 실제 사용하는 항목만 명시하는 방식으로 수정했다. |
+
 ## License
 
 MIT
