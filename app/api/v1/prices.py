@@ -15,6 +15,9 @@ from app.services.ai_service import analyze_price_trend
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
+TREND_HISTORY_LIMIT = 50
+AI_ANALYSIS_HISTORY_LIMIT = 30
+
 
 @router.get("/{product_id}/history", response_model=list[PriceHistoryResponse])
 def get_price_history(
@@ -61,7 +64,7 @@ def get_price_trend(
         db.query(PriceHistory)
         .filter(PriceHistory.product_id == product_id)
         .order_by(PriceHistory.recorded_at.desc())
-        .limit(50)
+        .limit(TREND_HISTORY_LIMIT)
         .all()
     )
 
@@ -102,7 +105,7 @@ async def get_ai_analysis(
         db.query(PriceHistory)
         .filter(PriceHistory.product_id == product_id)
         .order_by(PriceHistory.recorded_at.desc())
-        .limit(30)
+        .limit(AI_ANALYSIS_HISTORY_LIMIT)
         .all()
     )
 

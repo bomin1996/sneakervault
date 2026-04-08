@@ -199,6 +199,7 @@ sneakervault/
 | `fix: add notification deduplication` | 동일 상품/타입의 알림이 30분 내에 이미 존재하면 중복 생성 차단, 매직 넘버 상수화, 불필요한 중간 커밋 제거 | 시세 수집이 30분 간격인데 수집 시점에 여러 상품의 가격이 동시에 바뀌면 같은 알림이 반복 생성될 수 있다고 생각했다. 파트너 입장에서 같은 내용의 알림이 쌓이면 중요한 알림을 놓칠 수 있으니까, 수집 주기에 맞춰 30분 윈도우로 중복을 걸러냈다. |
 | `test: add comprehensive test coverage for all endpoints` | Product, Price, Notification, Admin 테스트 추가 (46개 테스트). Redis mock, admin/partner fixture 구성, 엣지 케이스 포함 | 기존에 테스트가 auth와 partner 등록 정도만 있어서 핵심 비즈니스 로직이 검증되지 않고 있었다. 모든 엔드포인트에 대해 정상/비정상 케이스를 커버하도록 테스트를 작성했고, Redis를 mock으로 대체해서 외부 의존성 없이 테스트가 돌아가도록 했다. |
 | `feat: add structured logging and global error handling` | 요청별 로깅 미들웨어(method, path, status, duration), 글로벌 예외 핸들러, 구조화된 로그 포맷 추가 | 운영 중 문제가 생겼을 때 로그가 없으면 원인 파악이 불가능하다. 모든 요청에 대해 응답 시간을 포함한 로그를 남기도록 했고, 처리되지 않은 예외가 500으로 빠지는 경우에도 스택 트레이스를 기록하도록 했다. 나중에 ELK나 CloudWatch 같은 로그 수집 시스템 연동 시 파싱하기 쉬운 포맷으로 설정했다. |
+| `refactor: extract magic numbers to named constants` | prices.py의 하드코딩된 limit(50, 30)을 상수로 추출, admin.py의 status 문자열 비교를 Enum으로 변경 | 코드에 50, 30 같은 숫자가 의미 없이 박혀 있으면 나��에 왜 이 값인지 파악하기 어렵고, 여러 곳에서 같은 값을 쓸 때 ��일치가 생길 수 있다. 상수로 이름을 붙여서 의도를 명확하게 했고, admin 통계 쿼리에서도 문자열 대신 Enum을 써서 타이포 방지와 일관성을 확보했다. |
 
 ## License
 

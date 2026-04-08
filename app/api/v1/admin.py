@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.api.deps import get_current_admin
 from app.models.user import User
-from app.models.partner import Partner
+from app.models.partner import Partner, PartnerStatus
 from app.models.product import Product
 from app.schemas.partner import PartnerResponse, PartnerAdminUpdate
 from app.schemas.product import ProductResponse, ProductListResponse
@@ -78,8 +78,8 @@ def get_dashboard_stats(
 ):
     return {
         "total_partners": db.query(Partner).count(),
-        "approved_partners": db.query(Partner).filter(Partner.status == "approved").count(),
-        "pending_partners": db.query(Partner).filter(Partner.status == "pending").count(),
+        "approved_partners": db.query(Partner).filter(Partner.status == PartnerStatus.APPROVED).count(),
+        "pending_partners": db.query(Partner).filter(Partner.status == PartnerStatus.PENDING).count(),
         "total_products": db.query(Product).count(),
         "active_products": db.query(Product).filter(Product.is_active == True).count(),
     }
