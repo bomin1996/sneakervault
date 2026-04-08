@@ -1,3 +1,7 @@
+import json
+import logging
+
+import redis
 from openai import AsyncOpenAI
 
 from app.config import get_settings
@@ -5,11 +9,28 @@ from app.models.product import Product
 from app.models.price_history import PriceHistory
 from app.schemas.price import AIAnalysisResponse
 
+logger = logging.getLogger(__name__)
+
+_settings = get_settings()
+_redis_client = redis.from_url(_settings.REDIS_URL, decode_responses=True)
+
+AI_CACHE_TTL_SECONDS = 3600  # 1시간
+AI_REQUEST_TIMEOUT_SECONDS = 30
+
+
+def _cache_key(product_id: int) -> str:
+    return f"ai_analysis:{product_id}"
+
 
 async def analyze_price_trend(
     product: Product,
     histories: list[PriceHistory],
 ) -> AIAnalysisResponse:
+    cached = _redis_client.get(_cache_key(product.id))
+    if cached:
+        logger.info(f"AI analysis cache hit for product {product.id}")
+        return AIAnalysisResponse(**json.loads(cached))
+
     settings = get_settings()
 
     if not settings.OPENAI_API_KEY:
@@ -36,16 +57,21 @@ async def analyze_price_trend(
 2. 트렌드: "상승" / "하락" / "횡보" 중 하나
 3. 추천: 판매자에게 1-2문장으로 가격 전략 추천"""
 
-    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "리셀 시장 시세 분석 전문가입니다. 간결하고 실용적인 분석을 제공합니다."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.3,
-        max_tokens=500,
-    )
+    try:
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "리셀 시장 시세 분석 전문가입니다. 간결하고 실용적인 분석을 제공합니다."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=500,
+            timeout=AI_REQUEST_TIMEOUT_SECONDS,
+        )
+    except Exception as e:
+        logger.error(f"OpenAI API call failed for product {product.id}: {e}")
+        return _fallback_analysis(product, histories)
 
     content = response.choices[0].message.content
     lines = content.strip().split("\n")
@@ -67,13 +93,21 @@ async def analyze_price_trend(
         elif section == "recommendation":
             recommendation += " " + line.strip()
 
-    return AIAnalysisResponse(
+    result = AIAnalysisResponse(
         product_id=product.id,
         product_name=product.name,
         summary=summary.strip() or content,
         trend=trend.strip(),
         recommendation=recommendation.strip(),
     )
+
+    _redis_client.setex(
+        _cache_key(product.id),
+        AI_CACHE_TTL_SECONDS,
+        result.model_dump_json(),
+    )
+
+    return result
 
 
 def _fallback_analysis(
