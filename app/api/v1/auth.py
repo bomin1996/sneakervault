@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -7,8 +8,11 @@ import redis
 from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, Token
-from app.utils.security import hash_password, verify_password, create_access_token
+from app.schemas.auth import LoginRequest, RegisterRequest, RefreshTokenRequest, Token
+from app.utils.security import (
+    hash_password, verify_password, create_access_token,
+    create_refresh_token, decode_access_token, blacklist_token,
+)
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -62,7 +66,10 @@ def register(request: Request, body: RegisterRequest, db: Session = Depends(get_
     db.commit()
     db.refresh(user)
 
-    return Token(access_token=create_access_token(user.id, user.is_admin))
+    return Token(
+        access_token=create_access_token(user.id, user.is_admin),
+        refresh_token=create_refresh_token(user.id),
+    )
 
 
 @router.post("/login", response_model=Token)
@@ -76,4 +83,36 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     _clear_login_attempts(body.email)
-    return Token(access_token=create_access_token(user.id, user.is_admin))
+    return Token(
+        access_token=create_access_token(user.id, user.is_admin),
+        refresh_token=create_refresh_token(user.id),
+    )
+
+
+@router.post("/refresh", response_model=Token)
+def refresh(body: RefreshTokenRequest, db: Session = Depends(get_db)):
+    try:
+        payload = decode_access_token(body.refresh_token)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+
+    user = db.query(User).filter(User.id == int(payload["sub"])).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    blacklist_token(body.refresh_token)
+    return Token(
+        access_token=create_access_token(user.id, user.is_admin),
+        refresh_token=create_refresh_token(user.id),
+    )
+
+
+security = HTTPBearer()
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    blacklist_token(credentials.credentials)
