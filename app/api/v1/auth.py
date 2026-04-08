@@ -12,6 +12,7 @@ from app.schemas.auth import LoginRequest, RegisterRequest, RefreshTokenRequest,
 from app.utils.security import (
     hash_password, verify_password, create_access_token,
     create_refresh_token, decode_access_token, blacklist_token,
+    create_email_verify_token, decode_email_verify_token,
 )
 
 router = APIRouter()
@@ -66,10 +67,34 @@ def register(request: Request, body: RegisterRequest, db: Session = Depends(get_
     db.commit()
     db.refresh(user)
 
-    return Token(
-        access_token=create_access_token(user.id, user.is_admin),
-        refresh_token=create_refresh_token(user.id),
-    )
+    verify_token = create_email_verify_token(user.id)
+
+    return {
+        "access_token": create_access_token(user.id, user.is_admin),
+        "refresh_token": create_refresh_token(user.id),
+        "token_type": "bearer",
+        "email_verify_token": verify_token,
+        "message": "Registration successful. Please verify your email.",
+    }
+
+
+@router.post("/verify-email")
+def verify_email(token: str, db: Session = Depends(get_db)):
+    try:
+        payload = decode_email_verify_token(token)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    user = db.query(User).filter(User.id == int(payload["sub"])).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if user.email_verified:
+        return {"message": "Email already verified"}
+
+    user.email_verified = True
+    db.commit()
+    return {"message": "Email verified successfully"}
 
 
 @router.post("/login", response_model=Token)

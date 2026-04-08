@@ -195,6 +195,8 @@ sneakervault/
 | `refactor: replace random price simulation with provider pattern` | 랜덤 시뮬레이션 제거, PriceProvider 추상 클래스 기반 외부 API 연동 구조로 변경. 매직 넘버 상수화, 배치 flush, 일간 리포트에 실제 알림 생성 추가 | 시세 수집이 `random.uniform`으로 동작하고 있어서 데모용으로밖에 쓸 수 없는 상태였다. 실제 운영에서는 외부 API나 크롤러에서 가격을 가져와야 하므로 Provider 패턴으로 추상화해서 데이터 소스를 교체할 수 있게 했다. 또한 일간 리포트가 통계만 계산하고 파트너에게 알림을 보내지 않고 있어서 Notification 생성까지 연결했다. |
 | `feat: add Redis caching for AI price analysis` | AI 분석 결과를 Redis에 1시간 TTL로 캐싱, OpenAI API 호출 실패 시 fallback 분석으로 전환, 타임아웃 설정 추가 | AI 분석을 요청할 때마다 매번 OpenAI API를 호출하고 있었는데, 같은 상품에 대해 짧은 시간 안에 반복 요청이 들어오면 비용 낭비에 응답 시간도 느려진다고 생각했다. 시세 데이터가 30분 간격으로 수집되니까 1시간 캐싱이면 충분하다고 판단했고, API 장애 시에도 fallback으로 기본 분석을 제공해서 서비스가 중단되지 않도록 했다. |
 
+| `feat: add email verification on registration` | 회원가입 시 이메일 인증 토큰 발급, `/verify-email` 엔드포인트 추가, User 모델에 `email_verified` 필드 추가 | 기존에는 가입하자마자 바로 모든 기능을 쓸 수 있어서 가짜 이메일로 계정을 무한히 만들 수 있었다. 이메일 인증 단계를 추가해서 실제 이메일 소유자만 서비스를 이용하도록 하고 싶었다. 토큰 기반으로 구현해서 별도 인증 코드 저장 없이 JWT만으로 검증이 가능하도록 했다. |
+
 ## License
 
 MIT

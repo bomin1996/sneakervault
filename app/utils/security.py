@@ -13,6 +13,7 @@ _settings = get_settings()
 _redis_client = redis.from_url(_settings.REDIS_URL, decode_responses=True)
 
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+EMAIL_VERIFY_TOKEN_EXPIRE_HOURS = 24
 
 
 def hash_password(password: str) -> str:
@@ -66,6 +67,28 @@ def blacklist_token(token: str) -> None:
 
 def _is_token_blacklisted(token: str) -> bool:
     return _redis_client.exists(f"token_blacklist:{token}") > 0
+
+
+def create_email_verify_token(user_id: int) -> str:
+    settings = get_settings()
+    expire = datetime.now(timezone.utc) + timedelta(hours=EMAIL_VERIFY_TOKEN_EXPIRE_HOURS)
+    payload = {"sub": str(user_id), "exp": expire, "type": "email_verify"}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+
+
+def decode_email_verify_token(token: str) -> dict:
+    settings = get_settings()
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+    except ExpiredSignatureError:
+        raise ValueError("Verification link has expired")
+    except JWTError:
+        raise ValueError("Invalid verification token")
+
+    if payload.get("type") != "email_verify":
+        raise ValueError("Invalid token type")
+
+    return payload
 
 
 def generate_api_key() -> str:
