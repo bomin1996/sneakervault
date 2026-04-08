@@ -192,6 +192,7 @@ sneakervault/
 | `fix: prevent API key timing attack and use enum for status comparison` | API Key 비교를 `hmac.compare_digest`로 변경, partner status 비교를 문자열에서 `PartnerStatus` Enum으로 변경 | API Key를 `==`로 비교하면 문자열 길이에 따라 응답 시간이 달라져서 공격자가 한 글자씩 키를 유추할 수 있다는 걸 알고 있었다. `hmac.compare_digest`는 항상 일정한 시간이 걸려서 이 문제를 해결할 수 있다. 또한 status를 문자열로 비교하고 있었는데, Enum이 이미 정의되어 있으면서 안 쓰고 있어서 타이포 실수 방지 겸 Enum 비교로 바꿨다. |
 | `feat: add global and per-endpoint rate limiting with slowapi` | slowapi 기반 글로벌 Rate Limiting(100req/min) 적용. 로그인(10/min), 회원가입(5/min), AI 분석(10/min) 엔드포인트에 개별 제한 추가 | API에 요청 제한이 전혀 없으면 DDoS나 자동화 스크립트로 서버가 과부하될 수 있다고 생각했다. 특히 AI 분석은 OpenAI API 호출 비용이 발생하므로 남용 방지가 필수적이었고, 인증 관련 엔드포인트는 더 엄격하게 제한해야 한다고 판단했다. Redis를 storage로 사용해서 다중 인스턴스 환경에서도 일관되게 동작한다. |
 | `feat: implement refresh token and token revocation` | Refresh Token 발급/갱신, 로그아웃 시 Redis 기반 토큰 블랙리스트, 토큰 만료 구분 처리 추가 | 기존에는 Access Token 하나만 발급하고 만료/폐기 처리가 없어서, 토큰이 탈취되면 만료될 때까지 막을 방법이 없었다. Refresh Token을 도입해서 Access Token 수명을 짧게 유지하면서도 사용자 경험을 해치지 않도록 했고, 로그아웃 시 토큰을 블랙리스트에 등록해서 즉시 무효화할 수 있게 했다. TTL을 토큰 만료 시간에 맞춰서 Redis 메모리가 불필요하게 쌓이지 않도록 했다. |
+| `refactor: replace random price simulation with provider pattern` | 랜덤 시뮬레이션 제거, PriceProvider 추상 클래스 기반 외부 API 연동 구조로 변경. 매직 넘버 상수화, 배치 flush, 일간 리포트에 실제 알림 생성 추가 | 시세 수집이 `random.uniform`으로 동작하고 있어서 데모용으로밖에 쓸 수 없는 상태였다. 실제 운영에서는 외부 API나 크롤러에서 가격을 가져와야 하므로 Provider 패턴으로 추상화해서 데이터 소스를 교체할 수 있게 했다. 또한 일간 리포트가 통계만 계산하고 파트너에게 알림을 보내지 않고 있어서 Notification 생성까지 연결했다. |
 
 ## License
 
