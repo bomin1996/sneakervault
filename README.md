@@ -197,6 +197,7 @@ sneakervault/
 
 | `feat: add email verification on registration` | 회원가입 시 이메일 인증 토큰 발급, `/verify-email` 엔드포인트 추가, User 모델에 `email_verified` 필드 추가 | 기존에는 가입하자마자 바로 모든 기능을 쓸 수 있어서 가짜 이메일로 계정을 무한히 만들 수 있었다. 이메일 인증 단계를 추가해서 실제 이메일 소유자만 서비스를 이용하도록 하고 싶었다. 토큰 기반으로 구현해서 별도 인증 코드 저장 없이 JWT만으로 검증이 가능하도록 했다. |
 | `fix: add notification deduplication` | 동일 상품/타입의 알림이 30분 내에 이미 존재하면 중복 생성 차단, 매직 넘버 상수화, 불필요한 중간 커밋 제거 | 시세 수집이 30분 간격인데 수집 시점에 여러 상품의 가격이 동시에 바뀌면 같은 알림이 반복 생성될 수 있다고 생각했다. 파트너 입장에서 같은 내용의 알림이 쌓이면 중요한 알림을 놓칠 수 있으니까, 수집 주기에 맞춰 30분 윈도우로 중복을 걸러냈다. |
+| `test: add comprehensive test coverage for all endpoints` | Product, Price, Notification, Admin 테스트 추가 (46개 테스트). Redis mock, admin/partner fixture 구성, 엣지 케이스 포함 | 기존에 테스트가 auth와 partner 등록 정도만 있어서 핵심 비즈니스 로직이 검증되지 않고 있었다. 모든 엔드포인트에 대해 정상/비정상 케이스를 커버하도록 테스트를 작성했고, Redis를 mock으로 대체해서 외부 의존성 없이 테스트가 돌아가도록 했다. |
 
 ## License
 
