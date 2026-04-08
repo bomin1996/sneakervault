@@ -9,6 +9,7 @@ def test_register_partner(client, auth_headers):
     assert data["business_name"] == "Test Store"
     assert data["status"] == "pending"
     assert "api_key" in data
+    assert len(data["api_key"]) == 64
 
 
 def test_register_partner_duplicate(client, auth_headers):
@@ -29,3 +30,12 @@ def test_register_partner_unauthorized(client):
         "contact_phone": "010-0000-0000",
     })
     assert res.status_code == 403
+
+
+def test_get_my_partner_hides_api_key(client, partner_headers):
+    res = client.get("/api/v1/partners/me", headers=partner_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert "api_key" not in data
+    assert "api_key_last4" in data
+    assert len(data["api_key_last4"]) == 4

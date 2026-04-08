@@ -5,13 +5,13 @@ from app.database import get_db
 from app.api.deps import get_current_user, get_current_partner
 from app.models.user import User
 from app.models.partner import Partner
-from app.schemas.partner import PartnerCreate, PartnerUpdate, PartnerResponse
+from app.schemas.partner import PartnerCreate, PartnerUpdate, PartnerResponse, PartnerWithKeyResponse
 from app.utils.security import generate_api_key
 
 router = APIRouter()
 
 
-@router.post("/register", response_model=PartnerResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=PartnerWithKeyResponse, status_code=status.HTTP_201_CREATED)
 def register_partner(
     body: PartnerCreate,
     user: User = Depends(get_current_user),
@@ -37,7 +37,7 @@ def register_partner(
 
 @router.get("/me", response_model=PartnerResponse)
 def get_my_partner(partner: Partner = Depends(get_current_partner)):
-    return partner
+    return PartnerResponse.from_partner(partner)
 
 
 @router.patch("/me", response_model=PartnerResponse)
@@ -50,10 +50,10 @@ def update_my_partner(
         setattr(partner, field, value)
     db.commit()
     db.refresh(partner)
-    return partner
+    return PartnerResponse.from_partner(partner)
 
 
-@router.post("/me/regenerate-key", response_model=PartnerResponse)
+@router.post("/me/regenerate-key", response_model=PartnerWithKeyResponse)
 def regenerate_api_key(
     partner: Partner = Depends(get_current_partner),
     db: Session = Depends(get_db),
