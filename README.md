@@ -186,23 +186,21 @@ sneakervault/
 
 | 커밋 | 변경 사항 | 이유 |
 |------|----------|------|
-| `fix: restrict CORS policy and allowed HTTP methods` | CORS `allow_origins=["*"]` 제거, 환경변수 기반 origin 관리로 변경. `allow_methods`/`allow_headers`를 필요한 항목만 명시 | 코드 리뷰 중 CORS가 전체 origin을 허용하고 있는 걸 발견했는데, 이러면 악의적인 외부 사이트에서 API를 자유롭게 호출할 수 있어서 CSRF 공격에 노출될 수 있겠다고 판단했다. 운영 환경에서는 신뢰할 수 있는 도메인만 허용해야 한다고 생각해서 `.env`로 origin을 관리하도록 변경했고, methods와 headers도 와일드카드 대신 실제 사용하는 항목만 명시하는 방식으로 수정했다. |
-| `fix: remove hardcoded SECRET_KEY default value` | 하드코딩된 `"dev-secret-key-change-in-production"` 제거, `secrets.token_urlsafe(32)`로 자동 생성되도록 변경. `field_validator`로 위험한 기본값 사용 시 앱 시작 자체를 차단 | SECRET_KEY가 코드에 그대로 박혀 있으면 레포를 볼 수 있는 누구나 JWT를 위조할 수 있다고 생각했다. `.env` 미설정 시에도 랜덤 키가 생성되게 하되, 알려진 위험한 값은 validator로 걸러서 실수로 운영에 올라가는 걸 막고 싶었다. |
-| `feat: add login attempt rate limiting with Redis` | 로그인 실패 시 Redis에 시도 횟수 기록, 5회 초과 시 15분간 차단. 성공 시 카운트 초기화 | 로그인 엔드포인트에 아무런 제한이 없으면 brute force 공격으로 비밀번호를 무한히 시도할 수 있다는 게 신경 쓰였다. 이미 Redis를 사용하고 있어서 별도 인프라 추가 없이 TTL 기반으로 시도 횟수를 관리하면 되겠다고 판단했고, pipeline으로 incr/expire를 원자적으로 처리해서 race condition도 방지했다. |
-| `fix: prevent API key timing attack and use enum for status comparison` | API Key 비교를 `hmac.compare_digest`로 변경, partner status 비교를 문자열에서 `PartnerStatus` Enum으로 변경 | API Key를 `==`로 비교하면 문자열 길이에 따라 응답 시간이 달라져서 공격자가 한 글자씩 키를 유추할 수 있다는 걸 알고 있었다. `hmac.compare_digest`는 항상 일정한 시간이 걸려서 이 문제를 해결할 수 있다. 또한 status를 문자열로 비교하고 있었는데, Enum이 이미 정의되어 있으면서 안 쓰고 있어서 타이포 실수 방지 겸 Enum 비교로 바꿨다. |
-| `feat: add global and per-endpoint rate limiting with slowapi` | slowapi 기반 글로벌 Rate Limiting(100req/min) 적용. 로그인(10/min), 회원가입(5/min), AI 분석(10/min) 엔드포인트에 개별 제한 추가 | API에 요청 제한이 전혀 없으면 DDoS나 자동화 스크립트로 서버가 과부하될 수 있다고 생각했다. 특히 AI 분석은 OpenAI API 호출 비용이 발생하므로 남용 방지가 필수적이었고, 인증 관련 엔드포인트는 더 엄격하게 제한해야 한다고 판단했다. Redis를 storage로 사용해서 다중 인스턴스 환경에서도 일관되게 동작한다. |
-| `feat: implement refresh token and token revocation` | Refresh Token 발급/갱신, 로그아웃 시 Redis 기반 토큰 블랙리스트, 토큰 만료 구분 처리 추가 | 기존에는 Access Token 하나만 발급하고 만료/폐기 처리가 없어서, 토큰이 탈취되면 만료될 때까지 막을 방법이 없었다. Refresh Token을 도입해서 Access Token 수명을 짧게 유지하면서도 사용자 경험을 해치지 않도록 했고, 로그아웃 시 토큰을 블랙리스트에 등록해서 즉시 무효화할 수 있게 했다. TTL을 토큰 만료 시간에 맞춰서 Redis 메모리가 불필요하게 쌓이지 않도록 했다. |
-| `refactor: replace random price simulation with provider pattern` | 랜덤 시뮬레이션 제거, PriceProvider 추상 클래스 기반 외부 API 연동 구조로 변경. 매직 넘버 상수화, 배치 flush, 일간 리포트에 실제 알림 생성 추가 | 시세 수집이 `random.uniform`으로 동작하고 있어서 데모용으로밖에 쓸 수 없는 상태였다. 실제 운영에서는 외부 API나 크롤러에서 가격을 가져와야 하므로 Provider 패턴으로 추상화해서 데이터 소스를 교체할 수 있게 했다. 또한 일간 리포트가 통계만 계산하고 파트너에게 알림을 보내지 않고 있어서 Notification 생성까지 연결했다. |
-| `feat: add Redis caching for AI price analysis` | AI 분석 결과를 Redis에 1시간 TTL로 캐싱, OpenAI API 호출 실패 시 fallback 분석으로 전환, 타임아웃 설정 추가 | AI 분석을 요청할 때마다 매번 OpenAI API를 호출하고 있었는데, 같은 상품에 대해 짧은 시간 안에 반복 요청이 들어오면 비용 낭비에 응답 시간도 느려진다고 생각했다. 시세 데이터가 30분 간격으로 수집되니까 1시간 캐싱이면 충분하다고 판단했고, API 장애 시에도 fallback으로 기본 분석을 제공해서 서비스가 중단되지 않도록 했다. |
-
-| `feat: add email verification on registration` | 회원가입 시 이메일 인증 토큰 발급, `/verify-email` 엔드포인트 추가, User 모델에 `email_verified` 필드 추가 | 기존에는 가입하자마자 바로 모든 기능을 쓸 수 있어서 가짜 이메일로 계정을 무한히 만들 수 있었다. 이메일 인증 단계를 추가해서 실제 이메일 소유자만 서비스를 이용하도록 하고 싶었다. 토큰 기반으로 구현해서 별도 인증 코드 저장 없이 JWT만으로 검증이 가능하도록 했다. |
-| `fix: add notification deduplication` | 동일 상품/타입의 알림이 30분 내에 이미 존재하면 중복 생성 차단, 매직 넘버 상수화, 불필요한 중간 커밋 제거 | 시세 수집이 30분 간격인데 수집 시점에 여러 상품의 가격이 동시에 바뀌면 같은 알림이 반복 생성될 수 있다고 생각했다. 파트너 입장에서 같은 내용의 알림이 쌓이면 중요한 알림을 놓칠 수 있으니까, 수집 주기에 맞춰 30분 윈도우로 중복을 걸러냈다. |
-| `test: add comprehensive test coverage for all endpoints` | Product, Price, Notification, Admin 테스트 추가 (46개 테스트). Redis mock, admin/partner fixture 구성, 엣지 케이스 포함 | 기존에 테스트가 auth와 partner 등록 정도만 있어서 핵심 비즈니스 로직이 검증되지 않고 있었다. 모든 엔드포인트에 대해 정상/비정상 케이스를 커버하도록 테스트를 작성했고, Redis를 mock으로 대체해서 외부 의존성 없이 테스트가 돌아가도록 했다. |
-| `feat: add structured logging and global error handling` | 요청별 로깅 미들웨어(method, path, status, duration), 글로벌 예외 핸들러, 구조화된 로그 포맷 추가 | 운영 중 문제가 생겼을 때 로그가 없으면 원인 파악이 불가능하다. 모든 요청에 대해 응답 시간을 포함한 로그를 남기도록 했고, 처리되지 않은 예외가 500으로 빠지는 경우에도 스택 트레이스를 기록하도록 했다. 나중에 ELK나 CloudWatch 같은 로그 수집 시스템 연동 시 파싱하기 쉬운 포맷으로 설정했다. |
-| `refactor: extract magic numbers to named constants` | prices.py의 하드코딩된 limit(50, 30)을 상수로 추출, admin.py의 status 문자열 비교를 Enum으로 변경 | 코드에 50, 30 같은 숫자가 의미 없이 박혀 있으면 나��에 왜 이 값인지 파악하기 어렵고, 여러 곳에서 같은 값을 쓸 때 ��일치가 생길 수 있다. 상수로 이름을 붙여서 의도를 명확하게 했고, admin 통계 쿼리에서도 문자열 대신 Enum을 써서 타이포 방지와 일관성을 확보했다. |
-
-| `fix: hide API key from partner GET responses` | PartnerResponse에서 api_key 제거, api_key_last4(마지막 4자리)로 대체. 등록/키 재발급 시에만 PartnerWithKeyResponse로 전체 키 노출 | GET /partners/me 같은 일반 조회에서 API Key 전체가 응답에 포함되고 있었다. 네트워크 로그나 프론트엔드 콘솔에서 키가 노출될 수 있다고 생각해서, 조회 시에는 마지막 4자리만 보여주고 전체 키는 최초 발급과 재발급 시에만 한 번 반환하도록 분리했다. |
-| `feat: add admin audit log for partner management` | AuditLog 모델 추가, Admin의 파트너 상태/등급 변경 시 변경 전후 값을 감사 로그로 기록 | Admin이 파트너 상태를 변경하거나 등급을 조정하는 건 비즈니스에 직접적인 영향을 주는 민감한 작업인데, 누가 언제 무엇을 바꿨는지 추적할 방법이 없었다. 변경 전후 값을 JSON으로 기록하는 감사 로그를 추가해서 문제 발생 시 원인 추적과 책임 소재를 파악할 수 있도록 했다. |
+| `fix: restrict CORS policy and allowed HTTP methods` | CORS 와일드카드 제거, `.env` 기반 origin 관리로 변경 | 전체 origin 허용은 CSRF 공격에 노출되므로 신뢰할 수 있는 도메인만 허용하도록 변경했다. |
+| `fix: remove hardcoded SECRET_KEY default value` | SECRET_KEY 자동 생성 + validator로 위험한 기본값 차단 | 코드에 박힌 키는 JWT 위조에 악용될 수 있어서 랜덤 생성과 검증을 추가했다. |
+| `feat: add login attempt rate limiting with Redis` | 로그인 5회 실패 시 15분 차단, Redis TTL 기반 | brute force 방지를 위해 기존 Redis 인프라를 활용한 시도 횟수 제한을 적용했다. |
+| `fix: prevent API key timing attack and use enum for status` | `hmac.compare_digest`로 상수 시간 비교, Enum 비교로 변경 | `==` 비교의 타이밍 공격 취약점을 제거하고, 문자열 비교를 Enum으로 통일했다. |
+| `feat: add global and per-endpoint rate limiting` | slowapi 글로벌(100/min) + 엔드포인트별 개별 제한 | DDoS 방지와 OpenAI API 비용 남용을 막기 위해 요청 제한을 도입했다. |
+| `feat: implement refresh token and token revocation` | Refresh Token + Redis 블랙리스트 기반 로그아웃 | 토큰 탈취 시 즉시 무효화할 수 있는 수단이 없어서 블랙리스트 방식을 적용했다. |
+| `refactor: replace random price simulation with provider pattern` | PriceProvider 추상화, 일간 리포트 알림 생성 연결 | 랜덤 시뮬레이션을 제거하고 실제 외부 API 연동이 가능한 구조로 변경했다. |
+| `feat: add Redis caching for AI price analysis` | AI 분석 결과 1시간 캐싱, 실패 시 fallback 전환 | 반복 호출 시 비용 낭비를 줄이고, API 장애에도 서비스가 유지되도록 했다. |
+| `feat: add email verification on registration` | 이메일 인증 토큰 발급 + `/verify-email` 엔드포인트 | 가짜 이메일 가입을 방지하기 위해 JWT 기반 이메일 인증 단계를 추가했다. |
+| `fix: add notification deduplication` | 30분 윈도우 내 동일 알림 중복 생성 차단 | 시세 수집 시 같은 알림이 반복 생성되어 중요한 알림이 묻히는 걸 방지했다. |
+| `test: add comprehensive test coverage` | 전체 엔드포인트 테스트 추가 (10개 → 47개) | 핵심 비즈니스 로직이 검증되지 않고 있어서 Redis mock 기반으로 전체 커버리지를 확대했다. |
+| `feat: add structured logging and global error handling` | 요청별 로깅 미들웨어 + 글로벌 예외 핸들러 | 운영 중 원인 파악을 위해 응답 시간 포함 로그와 미처리 예외 기록을 추가했다. |
+| `refactor: extract magic numbers to named constants` | 하드코딩된 숫자 상수화, status Enum 통일 | 의미 없는 숫자의 의도를 명확히 하고 타이포 방지를 위해 상수와 Enum으로 변경했다. |
+| `fix: hide API key from partner GET responses` | 조회 시 마지막 4자리만 노출, 발급 시에만 전체 반환 | API Key가 일반 조회 응답에 노출되어 네트워크 로그에서 유출될 수 있어서 마스킹 처리했다. |
+| `feat: add admin audit log for partner management` | AuditLog 모델, 변경 전후 값 JSON 기록 | Admin 작업의 추적이 불가능해서 감사 로그를 추가하여 책임 소재를 파악할 수 있게 했다. |
 
 ## License
 
