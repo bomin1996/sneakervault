@@ -1,10 +1,12 @@
+import hmac
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
-from app.models.partner import Partner
+from app.models.partner import Partner, PartnerStatus
 from app.utils.security import decode_access_token
 
 security = HTTPBearer()
@@ -39,7 +41,7 @@ def get_current_partner(
     partner = db.query(Partner).filter(Partner.user_id == user.id).first()
     if not partner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Partner registration required")
-    if partner.status != "approved":
+    if partner.status != PartnerStatus.APPROVED:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Partner status: {partner.status}")
     return partner
 
@@ -49,6 +51,13 @@ def get_partner_by_api_key(
     db: Session = Depends(get_db),
 ) -> Partner:
     partner = db.query(Partner).filter(Partner.api_key == api_key).first()
-    if not partner or partner.status != "approved":
+    if not partner:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+
+    if not hmac.compare_digest(partner.api_key, api_key):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+
+    if partner.status != PartnerStatus.APPROVED:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+
     return partner
