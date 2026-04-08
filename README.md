@@ -202,6 +202,7 @@ sneakervault/
 | `refactor: extract magic numbers to named constants` | prices.py의 하드코딩된 limit(50, 30)을 상수로 추출, admin.py의 status 문자열 비교를 Enum으로 변경 | 코드에 50, 30 같은 숫자가 의미 없이 박혀 있으면 나��에 왜 이 값인지 파악하기 어렵고, 여러 곳에서 같은 값을 쓸 때 ��일치가 생길 수 있다. 상수로 이름을 붙여서 의도를 명확하게 했고, admin 통계 쿼리에서도 문자열 대신 Enum을 써서 타이포 방지와 일관성을 확보했다. |
 
 | `fix: hide API key from partner GET responses` | PartnerResponse에서 api_key 제거, api_key_last4(마지막 4자리)로 대체. 등록/키 재발급 시에만 PartnerWithKeyResponse로 전체 키 노출 | GET /partners/me 같은 일반 조회에서 API Key 전체가 응답에 포함되고 있었다. 네트워크 로그나 프론트엔드 콘솔에서 키가 노출될 수 있다고 생각해서, 조회 시에는 마지막 4자리만 보여주고 전체 키는 최초 발급과 재발급 시에만 한 번 반환하도록 분리했다. |
+| `feat: add admin audit log for partner management` | AuditLog 모델 추가, Admin의 파트너 상태/등급 변경 시 변경 전후 값을 감사 로그로 기록 | Admin이 파트너 상태를 변경하거나 등급을 조정하는 건 비즈니스에 직접적인 영향을 주는 민감한 작업인데, 누가 언제 무엇을 바꿨는지 추적할 방법이 없었다. 변경 전후 값을 JSON으로 기록하는 감사 로그를 추가해서 문제 발생 시 원인 추적과 책임 소재를 파악할 수 있도록 했다. |
 
 ## License
 
