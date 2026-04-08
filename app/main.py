@@ -1,3 +1,5 @@
+import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -12,11 +14,20 @@ from app import database
 from app.api.v1.router import api_router
 from app.config import get_settings
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("sneakervault")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Starting SneakerVault API")
     Base.metadata.create_all(bind=database.engine)
     yield
+    logger.info("Shutting down SneakerVault API")
 
 
 settings = get_settings()
@@ -39,11 +50,32 @@ app = FastAPI(
 app.state.limiter = limiter
 
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start_time) * 1000
+    logger.info(
+        f"{request.method} {request.url.path} → {response.status_code} ({duration_ms:.0f}ms)"
+    )
+    return response
+
+
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    logger.warning(f"Rate limit exceeded: {request.client.host} → {request.url.path}")
     return JSONResponse(
         status_code=429,
         content={"detail": "Too many requests. Please try again later."},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {request.method} {request.url.path} — {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
     )
 
 
