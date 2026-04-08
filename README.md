@@ -190,6 +190,7 @@ sneakervault/
 | `fix: remove hardcoded SECRET_KEY default value` | 하드코딩된 `"dev-secret-key-change-in-production"` 제거, `secrets.token_urlsafe(32)`로 자동 생성되도록 변경. `field_validator`로 위험한 기본값 사용 시 앱 시작 자체를 차단 | SECRET_KEY가 코드에 그대로 박혀 있으면 레포를 볼 수 있는 누구나 JWT를 위조할 수 있다고 생각했다. `.env` 미설정 시에도 랜덤 키가 생성되게 하되, 알려진 위험한 값은 validator로 걸러서 실수로 운영에 올라가는 걸 막고 싶었다. |
 | `feat: add login attempt rate limiting with Redis` | 로그인 실패 시 Redis에 시도 횟수 기록, 5회 초과 시 15분간 차단. 성공 시 카운트 초기화 | 로그인 엔드포인트에 아무런 제한이 없으면 brute force 공격으로 비밀번호를 무한히 시도할 수 있다는 게 신경 쓰였다. 이미 Redis를 사용하고 있어서 별도 인프라 추가 없이 TTL 기반으로 시도 횟수를 관리하면 되겠다고 판단했고, pipeline으로 incr/expire를 원자적으로 처리해서 race condition도 방지했다. |
 | `fix: prevent API key timing attack and use enum for status comparison` | API Key 비교를 `hmac.compare_digest`로 변경, partner status 비교를 문자열에서 `PartnerStatus` Enum으로 변경 | API Key를 `==`로 비교하면 문자열 길이에 따라 응답 시간이 달라져서 공격자가 한 글자씩 키를 유추할 수 있다는 걸 알고 있었다. `hmac.compare_digest`는 항상 일정한 시간이 걸려서 이 문제를 해결할 수 있다. 또한 status를 문자열로 비교하고 있었는데, Enum이 이미 정의되어 있으면서 안 쓰고 있어서 타이포 실수 방지 겸 Enum 비교로 바꿨다. |
+| `feat: add global and per-endpoint rate limiting with slowapi` | slowapi 기반 글로벌 Rate Limiting(100req/min) 적용. 로그인(10/min), 회원가입(5/min), AI 분석(10/min) 엔드포인트에 개별 제한 추가 | API에 요청 제한이 전혀 없으면 DDoS나 자동화 스크립트로 서버가 과부하될 수 있다고 생각했다. 특히 AI 분석은 OpenAI API 호출 비용이 발생하므로 남용 방지가 필수적이었고, 인증 관련 엔드포인트는 더 엄격하게 제한해야 한다고 판단했다. Redis를 storage로 사용해서 다중 인스턴스 환경에서도 일관되게 동작한다. |
 
 ## License
 

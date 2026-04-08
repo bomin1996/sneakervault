@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.api.deps import get_current_partner
@@ -11,6 +13,7 @@ from app.schemas.price import PriceHistoryResponse, PriceTrendResponse, AIAnalys
 from app.services.ai_service import analyze_price_trend
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.get("/{product_id}/history", response_model=list[PriceHistoryResponse])
@@ -82,7 +85,9 @@ def get_price_trend(
 
 
 @router.get("/{product_id}/ai-analysis", response_model=AIAnalysisResponse)
+@limiter.limit("10/minute")
 async def get_ai_analysis(
+    request: Request,
     product_id: int,
     partner: Partner = Depends(get_current_partner),
     db: Session = Depends(get_db),
