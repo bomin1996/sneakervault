@@ -187,6 +187,7 @@ sneakervault/
 | 커밋 | 변경 사항 | 이유 |
 |------|----------|------|
 | `fix: restrict CORS policy and allowed HTTP methods` | CORS `allow_origins=["*"]` 제거, 환경변수 기반 origin 관리로 변경. `allow_methods`/`allow_headers`를 필요한 항목만 명시 | 코드 리뷰 중 CORS가 전체 origin을 허용하고 있는 걸 발견했는데, 이러면 악의적인 외부 사이트에서 API를 자유롭게 호출할 수 있어서 CSRF 공격에 노출될 수 있겠다고 판단했다. 운영 환경에서는 신뢰할 수 있는 도메인만 허용해야 한다고 생각해서 `.env`로 origin을 관리하도록 변경했고, methods와 headers도 와일드카드 대신 실제 사용하는 항목만 명시하는 방식으로 수정했다. |
+| `fix: remove hardcoded SECRET_KEY default value` | 하드코딩된 `"dev-secret-key-change-in-production"` 제거, `secrets.token_urlsafe(32)`로 자동 생성되도록 변경. `field_validator`로 위험한 기본값 사용 시 앱 시작 자체를 차단 | SECRET_KEY가 코드에 그대로 박혀 있으면 레포를 볼 수 있는 누구나 JWT를 위조할 수 있다고 생각했다. `.env` 미설정 시에도 랜덤 키가 생성되게 하되, 알려진 위험한 값은 validator로 걸러서 실수로 운영에 올라가는 걸 막고 싶었다. |
 
 ## License
 
